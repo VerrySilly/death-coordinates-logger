@@ -1,12 +1,12 @@
 package com.verrysilly.deathcoords.client;
 
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 
 public class DeathCoordinatesLoggerClient implements ClientModInitializer {
 	@Override
@@ -18,15 +18,15 @@ public class DeathCoordinatesLoggerClient implements ClientModInitializer {
 		ClientTickEvents.END_CLIENT_TICK.register(DeathTracker::onTick);
 
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
-			dispatcher.register(ClientCommandManager.literal("lastdeath").executes(context -> {
+			dispatcher.register(ClientCommands.literal("lastdeath").executes(context -> {
 				context.getSource().sendFeedback(DeathTracker.lastDeathText());
 				return 1;
 			}));
 
-			dispatcher.register(ClientCommandManager.literal("clearbeacons").executes(context -> {
-				int removed = DeathBeacons.clearCurrentWorld(MinecraftClient.getInstance());
+			dispatcher.register(ClientCommands.literal("clearbeacons").executes(context -> {
+				int removed = DeathBeacons.clearCurrentWorld(Minecraft.getInstance());
 				context.getSource().sendFeedback(
-					Text.literal("[Death] Removed " + removed + " beacon(s)").formatted(Formatting.GRAY)
+					Component.literal("[Death] Removed " + removed + " beacon(s)").withStyle(ChatFormatting.GRAY)
 				);
 				return 1;
 			}));

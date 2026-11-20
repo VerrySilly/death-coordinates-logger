@@ -1,6 +1,6 @@
 # Death Coordinates Logger
 
-A client-side Fabric mod for Minecraft 1.21.11. When you die it:
+A client-side Fabric mod for Minecraft 26.1. When you die it:
 
 - prints your coordinates and dimension in chat (with the matching Nether/Overworld coordinates),
 - appends the death to `death-coordinates.log` in your game folder,
@@ -9,6 +9,8 @@ A client-side Fabric mod for Minecraft 1.21.11. When you die it:
 Because it is client-only, it works in singleplayer and on any server without the server installing anything.
 
 ## Build
+
+Requires JDK 25.
 
 ```
 ./gradlew build
