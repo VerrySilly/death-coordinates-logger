@@ -118,7 +118,7 @@ public final class DeathBeacons {
 		attackWasDown = down;
 
 		LocalPlayer player = client.player;
-		if (!freshPress || player == null || client.level == null || client.screen != null) {
+		if (!freshPress || player == null || client.level == null || client.gui.screen() != null) {
 			return;
 		}
 
