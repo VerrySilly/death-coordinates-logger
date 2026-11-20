@@ -2,13 +2,13 @@ package com.verrysilly.deathcoords.client;
 
 import com.verrysilly.deathcoords.DeathCoordinatesLogger;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.network.ServerInfo;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 
 import java.io.IOException;
 import java.lang.ref.WeakReference;
@@ -21,58 +21,58 @@ import java.util.List;
 public final class DeathTracker {
 	private static final String LOG_FILE_NAME = "death-coordinates.log";
 
-	private static WeakReference<ClientPlayerEntity> lastLoggedPlayer = new WeakReference<>(null);
+	private static WeakReference<LocalPlayer> lastLoggedPlayer = new WeakReference<>(null);
 	private static DeathRecord lastDeath;
 
 	private DeathTracker() {
 	}
 
-	public static void onTick(MinecraftClient client) {
-		ClientPlayerEntity player = client.player;
-		if (player == null || client.world == null) {
+	public static void onTick(Minecraft client) {
+		LocalPlayer player = client.player;
+		if (player == null || client.level == null) {
 			return;
 		}
 
-		if (player.isDead() && lastLoggedPlayer.get() != player) {
+		if (player.isDeadOrDying() && lastLoggedPlayer.get() != player) {
 			lastLoggedPlayer = new WeakReference<>(player);
 			recordDeath(client, player);
 		}
 	}
 
-	private static void recordDeath(MinecraftClient client, ClientPlayerEntity player) {
-		BlockPos pos = player.getBlockPos();
-		String dimension = client.world.getRegistryKey().getValue().toString();
+	private static void recordDeath(Minecraft client, LocalPlayer player) {
+		BlockPos pos = player.blockPosition();
+		String dimension = client.level.dimension().identifier().toString();
 
-		ServerInfo server = client.getCurrentServerEntry();
-		String where = server != null ? server.address : "singleplayer";
+		ServerData server = client.getCurrentServer();
+		String where = server != null ? server.ip : "singleplayer";
 
 		DeathRecord record = new DeathRecord(LocalDateTime.now(), where, dimension, pos.getX(), pos.getY(), pos.getZ());
 		lastDeath = record;
 		DeathBeacons.add(client, record);
 
-		player.sendMessage(format(record, false), false);
+		player.sendSystemMessage(format(record, false));
 		appendToLog(record);
 	}
 
-	public static Text lastDeathText() {
+	public static Component lastDeathText() {
 		DeathRecord record = lastDeath != null ? lastDeath : readLastDeathFromLog();
 		if (record == null) {
-			return Text.literal("[Death] No death recorded yet.").formatted(Formatting.GRAY);
+			return Component.literal("[Death] No death recorded yet.").withStyle(ChatFormatting.GRAY);
 		}
 		return format(record, true);
 	}
 
-	private static Text format(DeathRecord record, boolean withTime) {
-		MutableText text = Text.literal("[Death] ").formatted(Formatting.RED);
+	private static Component format(DeathRecord record, boolean withTime) {
+		MutableComponent text = Component.literal("[Death] ").withStyle(ChatFormatting.RED);
 		if (withTime) {
-			text.append(Text.literal(record.timeLabel() + "  ").formatted(Formatting.GRAY));
+			text.append(Component.literal(record.timeLabel() + "  ").withStyle(ChatFormatting.GRAY));
 		}
-		text.append(Text.literal(String.format("X: %d  Y: %d  Z: %d", record.x(), record.y(), record.z())).formatted(Formatting.GOLD));
-		text.append(Text.literal("  (" + record.dimensionLabel() + ")").formatted(Formatting.AQUA));
+		text.append(Component.literal(String.format("X: %d  Y: %d  Z: %d", record.x(), record.y(), record.z())).withStyle(ChatFormatting.GOLD));
+		text.append(Component.literal("  (" + record.dimensionLabel() + ")").withStyle(ChatFormatting.AQUA));
 
 		String hint = record.conversionHint();
 		if (!hint.isEmpty()) {
-			text.append(Text.literal("  " + hint).formatted(Formatting.GRAY));
+			text.append(Component.literal("  " + hint).withStyle(ChatFormatting.GRAY));
 		}
 		return text;
 	}

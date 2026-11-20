@@ -2,17 +2,17 @@ package com.verrysilly.deathcoords.client;
 
 import com.verrysilly.deathcoords.DeathCoordinatesLogger;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.network.ServerInfo;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.RaycastContext;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -63,17 +63,17 @@ public final class DeathBeacons {
 		return FabricLoader.getInstance().getGameDir().resolve(FILE_NAME);
 	}
 
-	public static void add(MinecraftClient client, DeathRecord death) {
+	public static void add(Minecraft client, DeathRecord death) {
 		ACTIVE.add(new DeathRecord(death.time(), worldKey(client), death.dimension(), death.x(), death.y(), death.z()));
 		save();
 	}
 
-	static List<DeathRecord> inCurrentWorld(MinecraftClient client) {
-		if (ACTIVE.isEmpty() || client.world == null) {
+	static List<DeathRecord> inCurrentWorld(Minecraft client) {
+		if (ACTIVE.isEmpty() || client.level == null) {
 			return List.of();
 		}
 		String key = worldKey(client);
-		String dimension = client.world.getRegistryKey().getValue().toString();
+		String dimension = client.level.dimension().identifier().toString();
 		List<DeathRecord> result = new ArrayList<>();
 		for (DeathRecord record : ACTIVE) {
 			if (record.where().equals(key) && record.dimension().equals(dimension)) {
@@ -83,7 +83,7 @@ public final class DeathBeacons {
 		return result;
 	}
 
-	public static int clearCurrentWorld(MinecraftClient client) {
+	public static int clearCurrentWorld(Minecraft client) {
 		String key = worldKey(client);
 		int before = ACTIVE.size();
 		ACTIVE.removeIf(record -> record.where().equals(key));
@@ -91,34 +91,34 @@ public final class DeathBeacons {
 		return before - ACTIVE.size();
 	}
 
-	static int beamBottom(ClientWorld world, DeathRecord beacon) {
-		return Math.max(beacon.y(), world.getBottomY());
+	static int beamBottom(ClientLevel world, DeathRecord beacon) {
+		return Math.max(beacon.y(), world.getMinY());
 	}
 
-	static int beamTop(ClientWorld world) {
-		return world.getBottomY() + world.getHeight();
+	static int beamTop(ClientLevel world) {
+		return world.getMinY() + world.getHeight();
 	}
 
-	private static String worldKey(MinecraftClient client) {
-		ServerInfo server = client.getCurrentServerEntry();
+	private static String worldKey(Minecraft client) {
+		ServerData server = client.getCurrentServer();
 		if (server != null) {
-			return server.address;
+			return server.ip;
 		}
-		if (client.getServer() != null) {
-			String name = client.getServer().getSaveProperties().getLevelName();
+		if (client.getSingleplayerServer() != null) {
+			String name = client.getSingleplayerServer().getWorldData().getLevelName();
 			return "singleplayer:" + name.replace('|', '/');
 		}
 		return "unknown";
 	}
 
-	public static void onTick(MinecraftClient client) {
-		KeyBinding attack = client.options.attackKey;
-		boolean down = attack.isPressed();
+	public static void onTick(Minecraft client) {
+		KeyMapping attack = client.options.keyAttack;
+		boolean down = attack.isDown();
 		boolean freshPress = down && !attackWasDown;
 		attackWasDown = down;
 
-		ClientPlayerEntity player = client.player;
-		if (!freshPress || player == null || client.world == null || client.currentScreen != null) {
+		LocalPlayer player = client.player;
+		if (!freshPress || player == null || client.level == null || client.screen != null) {
 			return;
 		}
 
@@ -130,25 +130,25 @@ public final class DeathBeacons {
 		ACTIVE.remove(hit);
 		save();
 
-		while (attack.wasPressed()) {
+		while (attack.consumeClick()) {
 			
 		}
-		attack.setPressed(false);
+		attack.setDown(false);
 
-		player.sendMessage(Text.literal("[Death] Beacon disabled").formatted(Formatting.GRAY), true);
+		player.sendOverlayMessage(Component.literal("[Death] Beacon disabled").withStyle(ChatFormatting.GRAY));
 	}
 
-	private static DeathRecord beaconUnderCrosshair(MinecraftClient client, ClientPlayerEntity player) {
-		ClientWorld world = client.world;
-		Vec3d origin = player.getEyePos();
-		Vec3d direction = player.getRotationVec(1.0F);
+	private static DeathRecord beaconUnderCrosshair(Minecraft client, LocalPlayer player) {
+		ClientLevel world = client.level;
+		Vec3 origin = player.getEyePosition();
+		Vec3 direction = player.getViewVector(1.0F);
 
 		DeathRecord best = null;
 		double bestDistance = MAX_CLICK_DISTANCE;
 		for (DeathRecord beacon : inCurrentWorld(client)) {
 			double cx = beacon.x() + 0.5;
 			double cz = beacon.z() + 0.5;
-			Box box = new Box(
+			AABB box = new AABB(
 				cx - CLICK_HALF_WIDTH, beamBottom(world, beacon), cz - CLICK_HALF_WIDTH,
 				cx + CLICK_HALF_WIDTH, beamTop(world), cz + CLICK_HALF_WIDTH
 			);
@@ -162,14 +162,14 @@ public final class DeathBeacons {
 			return null;
 		}
 
-		Vec3d hitPoint = origin.add(direction.multiply(bestDistance));
-		HitResult blocked = world.raycast(new RaycastContext(
-			origin, hitPoint, RaycastContext.ShapeType.OUTLINE, RaycastContext.FluidHandling.NONE, player
+		Vec3 hitPoint = origin.add(direction.scale(bestDistance));
+		HitResult blocked = world.clip(new ClipContext(
+			origin, hitPoint, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player
 		));
 		return blocked.getType() == HitResult.Type.MISS ? best : null;
 	}
 
-	private static double rayHitDistance(Vec3d origin, Vec3d dir, Box box) {
+	private static double rayHitDistance(Vec3 origin, Vec3 dir, AABB box) {
 		double near = Double.NEGATIVE_INFINITY;
 		double far = Double.POSITIVE_INFINITY;
 

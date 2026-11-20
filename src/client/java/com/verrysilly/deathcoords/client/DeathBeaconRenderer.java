@@ -1,31 +1,31 @@
 package com.verrysilly.deathcoords.client;
 
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.block.entity.BeaconBlockEntityRenderer;
-import net.minecraft.client.render.command.OrderedRenderCommandQueue;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Vec3d;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.blockentity.BeaconRenderer;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
 
 public final class DeathBeaconRenderer {
 	private static final int RED = 0xFFFF0000;
-	private static final Identifier BEAM_TEXTURE = Identifier.ofVanilla("textures/entity/beacon_beam.png");
+	private static final Identifier BEAM_TEXTURE = BeaconRenderer.BEAM_LOCATION;
 
 	private DeathBeaconRenderer() {
 	}
 
 	public static void register() {
-		WorldRenderEvents.AFTER_ENTITIES.register(DeathBeaconRenderer::render);
+		LevelRenderEvents.COLLECT_SUBMITS.register(DeathBeaconRenderer::render);
 	}
 
-	private static void render(WorldRenderContext context) {
-		MinecraftClient client = MinecraftClient.getInstance();
-		ClientWorld world = client.world;
+	private static void render(LevelRenderContext context) {
+		Minecraft client = Minecraft.getInstance();
+		ClientLevel world = client.level;
 		if (world == null) {
 			return;
 		}
@@ -35,20 +35,20 @@ public final class DeathBeaconRenderer {
 			return;
 		}
 
-		MatrixStack matrices = context.matrices();
-		OrderedRenderCommandQueue queue = context.commandQueue();
-		Vec3d camera = client.gameRenderer.getCamera().getCameraPos();
-		float tickProgress = client.getRenderTickCounter().getTickProgress(false);
-		long time = world.getTime();
+		PoseStack matrices = context.poseStack();
+		SubmitNodeCollector queue = context.submitNodeCollector();
+		Vec3 camera = client.gameRenderer.getMainCamera().position();
+		float tickProgress = client.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+		long time = world.getGameTime();
 
 		for (DeathRecord beacon : beacons) {
 			int bottom = DeathBeacons.beamBottom(world, beacon);
 			int height = DeathBeacons.beamTop(world) - bottom;
 
-			matrices.push();
+			matrices.pushPose();
 			matrices.translate(beacon.x() - camera.x, bottom - camera.y, beacon.z() - camera.z);
-			BeaconBlockEntityRenderer.renderBeam(matrices, queue, BEAM_TEXTURE, tickProgress, (float) time, 0, height, RED, 0.2F, 0.25F);
-			matrices.pop();
+			BeaconRenderer.submitBeaconBeam(matrices, queue, BEAM_TEXTURE, tickProgress, (float) time, 0, height, RED, 0.2F, 0.25F);
+			matrices.popPose();
 		}
 	}
 }
