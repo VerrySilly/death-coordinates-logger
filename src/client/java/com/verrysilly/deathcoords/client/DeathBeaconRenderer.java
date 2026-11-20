@@ -37,7 +37,7 @@ public final class DeathBeaconRenderer {
 
 		PoseStack matrices = context.poseStack();
 		SubmitNodeCollector queue = context.submitNodeCollector();
-		Vec3 camera = client.gameRenderer.getMainCamera().position();
+		Vec3 camera = context.levelState().cameraRenderState.pos;
 		float tickProgress = client.getDeltaTracker().getGameTimeDeltaPartialTick(false);
 		long time = world.getGameTime();
 
