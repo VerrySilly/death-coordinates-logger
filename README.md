@@ -15,7 +15,3 @@ Because it is client-only, it works in singleplayer and on any server without th
 ```
 
 The jar ends up in `build/libs/` (use the one without `-sources`). Use `./gradlew runClient` to test it in a dev client.
-
-## License
-
-This template is available under the CC0 license. Feel free to learn from it and incorporate it in your own projects.
